@@ -39,7 +39,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "dex_cpp::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-dex_cpp-Debug-5921101c6a06ee8de80b.json",
+					"jsonFile" : "target-dex_cpp-Debug-a6cad0063eff307f861b.json",
 					"name" : "dex_cpp",
 					"projectIndex" : 0
 				}
@@ -49,7 +49,7 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "K:/Cherry/capacitor-dex-editor/android/.cxx/Debug/1d7e4x2y/x86",
+		"build" : "K:/Cherry/capacitor-dex-editor/android/.cxx/Debug/1d7e4x2y/x86_64",
 		"source" : "K:/Cherry/capacitor-dex-editor/android/src/main/cpp"
 	},
 	"version" : 

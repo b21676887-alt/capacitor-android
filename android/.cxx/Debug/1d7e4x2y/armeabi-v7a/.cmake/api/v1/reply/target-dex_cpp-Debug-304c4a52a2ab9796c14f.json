@@ -2,7 +2,7 @@
 	"artifacts" : 
 	[
 		{
-			"path" : "K:/Cherry/capacitor-dex-editor/android/build/intermediates/cxx/Debug/1d7e4x2y/obj/x86/libdex_cpp.so"
+			"path" : "K:/Cherry/capacitor-dex-editor/android/build/intermediates/cxx/Debug/1d7e4x2y/obj/armeabi-v7a/libdex_cpp.so"
 		}
 	],
 	"backtrace" : 1,
@@ -11,6 +11,7 @@
 		"commands" : 
 		[
 			"add_library",
+			"target_link_options",
 			"target_link_libraries",
 			"target_compile_options",
 			"target_compile_definitions",
@@ -34,23 +35,29 @@
 			{
 				"command" : 1,
 				"file" : 0,
-				"line" : 44,
+				"line" : 56,
 				"parent" : 0
 			},
 			{
 				"command" : 2,
 				"file" : 0,
-				"line" : 47,
+				"line" : 44,
 				"parent" : 0
 			},
 			{
 				"command" : 3,
 				"file" : 0,
-				"line" : 55,
+				"line" : 47,
 				"parent" : 0
 			},
 			{
 				"command" : 4,
+				"file" : 0,
+				"line" : 62,
+				"parent" : 0
+			},
+			{
+				"command" : 5,
 				"file" : 0,
 				"line" : 31,
 				"parent" : 0
@@ -63,22 +70,22 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -mstackrealign -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -O2 -fno-limit-debug-info  -fPIC"
+					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security  -std=c++17 -O2 -fno-limit-debug-info  -fPIC"
 				},
 				{
-					"backtrace" : 3,
+					"backtrace" : 4,
 					"fragment" : "-Wall"
 				},
 				{
-					"backtrace" : 3,
+					"backtrace" : 4,
 					"fragment" : "-Wextra"
 				},
 				{
-					"backtrace" : 3,
+					"backtrace" : 4,
 					"fragment" : "-O2"
 				},
 				{
-					"backtrace" : 3,
+					"backtrace" : 4,
 					"fragment" : "-fvisibility=hidden"
 				},
 				{
@@ -88,7 +95,7 @@
 			"defines" : 
 			[
 				{
-					"backtrace" : 4,
+					"backtrace" : 5,
 					"define" : "ANDROID"
 				},
 				{
@@ -98,15 +105,15 @@
 			"includes" : 
 			[
 				{
-					"backtrace" : 5,
+					"backtrace" : 6,
 					"path" : "K:/Cherry/capacitor-dex-editor/android/src/main/cpp/include"
 				},
 				{
-					"backtrace" : 5,
+					"backtrace" : 6,
 					"path" : "K:/Cherry/capacitor-dex-editor/android/src/main/cpp/third_party"
 				},
 				{
-					"backtrace" : 5,
+					"backtrace" : 6,
 					"path" : "K:/Cherry/capacitor-dex-editor/android/src/main/cpp/third_party/nlohmann_json/single_include"
 				}
 			],
@@ -140,29 +147,29 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -mstackrealign -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -fno-limit-debug-info  -fPIC"
+					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security  -fno-limit-debug-info  -fPIC"
 				},
 				{
-					"backtrace" : 3,
+					"backtrace" : 4,
 					"fragment" : "-Wall"
 				},
 				{
-					"backtrace" : 3,
+					"backtrace" : 4,
 					"fragment" : "-Wextra"
 				},
 				{
-					"backtrace" : 3,
+					"backtrace" : 4,
 					"fragment" : "-O2"
 				},
 				{
-					"backtrace" : 3,
+					"backtrace" : 4,
 					"fragment" : "-fvisibility=hidden"
 				}
 			],
 			"defines" : 
 			[
 				{
-					"backtrace" : 4,
+					"backtrace" : 5,
 					"define" : "ANDROID"
 				},
 				{
@@ -172,15 +179,15 @@
 			"includes" : 
 			[
 				{
-					"backtrace" : 5,
+					"backtrace" : 6,
 					"path" : "K:/Cherry/capacitor-dex-editor/android/src/main/cpp/include"
 				},
 				{
-					"backtrace" : 5,
+					"backtrace" : 6,
 					"path" : "K:/Cherry/capacitor-dex-editor/android/src/main/cpp/third_party"
 				},
 				{
-					"backtrace" : 5,
+					"backtrace" : 6,
 					"path" : "K:/Cherry/capacitor-dex-editor/android/src/main/cpp/third_party/nlohmann_json/single_include"
 				}
 			],
@@ -209,7 +216,17 @@
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "K:\\studiosdk\\ndk\\25.2.9519653\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\lib\\i686-linux-android\\23\\liblog.so",
+				"fragment" : "-Wl,-z,max-page-size=16384",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "-Wl,-z,common-page-size=16384",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 3,
+				"fragment" : "K:\\studiosdk\\ndk\\25.2.9519653\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\lib\\arm-linux-androideabi\\23\\liblog.so",
 				"role" : "libraries"
 			},
 			{

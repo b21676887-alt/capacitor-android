@@ -51,6 +51,13 @@ target_compile_options(dex_cpp PRIVATE
     -fvisibility=hidden
 )
 
+# 链接选项 - 16KB 页面对齐 (Android 15+ 兼容性)
+# 参考: https://developer.android.com/guide/practices/page-sizes
+target_link_options(dex_cpp PRIVATE
+    -Wl,-z,max-page-size=16384
+    -Wl,-z,common-page-size=16384
+)
+
 # 定义宏
 target_compile_definitions(dex_cpp PRIVATE
     ANDROID
