@@ -358,6 +358,63 @@ public class DexEditorPluginPlugin extends Plugin {
                 result.put("data", dexManager.getStrings(params.getString("sessionId")));
                 break;
 
+            case "listStrings":
+                // C++ 实现的字符串列表
+                if (CppApkHelper.isAvailable()) {
+                    byte[] dexBytes = dexManager.getSessionDexBytes(params.getString("sessionId"));
+                    if (dexBytes != null) {
+                        result.put("data", CppDexHelper.listStrings(
+                            dexBytes,
+                            params.optString("filter", ""),
+                            params.optInt("limit", 100)
+                        ));
+                    }
+                }
+                break;
+
+            // ============ C++ APK/资源操作 ============
+            case "parseManifestCpp":
+                result.put("data", CppApkHelper.parseManifestFromApk(
+                    params.getString("apkPath")
+                ));
+                break;
+
+            case "searchManifestCpp":
+                byte[] axmlBytes = CppApkHelper.readFileFromApk(
+                    params.getString("apkPath"), 
+                    "AndroidManifest.xml"
+                );
+                result.put("data", CppApkHelper.searchManifest(
+                    axmlBytes,
+                    params.optString("attrName", ""),
+                    params.optString("value", ""),
+                    params.optInt("limit", 50)
+                ));
+                break;
+
+            case "parseArscCpp":
+                result.put("data", CppApkHelper.parseArscFromApk(
+                    params.getString("apkPath")
+                ));
+                break;
+
+            case "searchArscStrings":
+                result.put("data", CppApkHelper.searchArscStringsFromApk(
+                    params.getString("apkPath"),
+                    params.getString("pattern"),
+                    params.optInt("limit", 50)
+                ));
+                break;
+
+            case "searchArscResources":
+                result.put("data", CppApkHelper.searchArscResourcesFromApk(
+                    params.getString("apkPath"),
+                    params.getString("pattern"),
+                    params.optString("type", ""),
+                    params.optInt("limit", 50)
+                ));
+                break;
+
             case "modifyString":
                 dexManager.modifyString(
                     params.getString("sessionId"),

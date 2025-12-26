@@ -274,6 +274,14 @@ public class DexManager {
     }
 
     /**
+     * 获取会话的 DEX 字节数据（用于 C++ 操作）
+     */
+    public byte[] getSessionDexBytes(String sessionId) {
+        DexSession session = sessions.get(sessionId);
+        return session != null ? session.dexBytes : null;
+    }
+
+    /**
      * 获取 DEX 文件信息（优先使用 C++ 实现）
      */
     public JSObject getDexInfo(String sessionId) throws Exception {
