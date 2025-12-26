@@ -32,7 +32,8 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17 -O2"
-                arguments "-DANDROID_STL=c++_shared"
+                // 使用静态链接 C++ 标准库，避免 libc++_shared.so 的 16KB 对齐问题
+                arguments "-DANDROID_STL=c++_static"
             }
         }
         

@@ -1,0 +1,3 @@
+K:/Cherry/capacitor-dex-editor/android/.cxx/Debug/3i594u2k/x86_64/CMakeFiles/dex_cpp.dir
+K:/Cherry/capacitor-dex-editor/android/.cxx/Debug/3i594u2k/x86_64/CMakeFiles/edit_cache.dir
+K:/Cherry/capacitor-dex-editor/android/.cxx/Debug/3i594u2k/x86_64/CMakeFiles/rebuild_cache.dir
