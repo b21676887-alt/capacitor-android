@@ -27,10 +27,6 @@ import com.android.tools.smali.dexlib2.immutable.ImmutableField;
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod;
 import com.android.tools.smali.dexlib2.writer.io.FileDataStore;
 import com.android.tools.smali.dexlib2.writer.pool.DexPool;
-import com.android.tools.smali.baksmali.Baksmali;
-import com.android.tools.smali.baksmali.BaksmaliOptions;
-import com.android.tools.smali.baksmali.Adaptors.ClassDefinition;
-import com.android.tools.smali.baksmali.formatter.BaksmaliWriter;
 import com.android.tools.smali.smali.Smali;
 import com.android.tools.smali.smali.SmaliOptions;
 
@@ -111,6 +107,7 @@ public class DexManager {
         long lastModified;
         Map<String, ClassDef> classDefMap; // type -> ClassDef
         int dexVersion;
+        byte[] dexBytes; // DEX 原始字节用于 C++ 操作
         
         ApkDexCache(String apkPath, String dexPath) {
             this.apkPath = apkPath;
@@ -882,49 +879,12 @@ public class DexManager {
                     }
                 }
             } catch (Exception e) {
-                Log.w(TAG, "C++ classToSmali failed, fallback to Java", e);
+                Log.w(TAG, "C++ classToSmali failed", e);
+                throw new Exception("C++ classToSmali failed: " + e.getMessage());
             }
         }
         
-        // Java 回退实现
-        ClassDef classDef = findClass(session, className);
-        if (classDef == null) {
-            throw new IllegalArgumentException("Class not found: " + className);
-        }
-
-        StringWriter writer = new StringWriter();
-        BaksmaliOptions options = new BaksmaliOptions();
-        
-        List<ClassDef> singleClass = new ArrayList<>();
-        singleClass.add(classDef);
-        ImmutableDexFile singleDex = new ImmutableDexFile(
-            session.originalDexFile.getOpcodes(), 
-            singleClass
-        );
-
-        File tempDir = File.createTempFile("smali_", "_temp");
-        tempDir.delete();
-        tempDir.mkdirs();
-
-        try {
-            Baksmali.disassembleDexFile(singleDex, tempDir, 1, options);
-            
-            String smaliPath = className.substring(1, className.length() - 1) + ".smali";
-            File smaliFile = new File(tempDir, smaliPath);
-            
-            if (smaliFile.exists()) {
-                String smali = readFileContent(smaliFile);
-                JSObject result = new JSObject();
-                result.put("className", className);
-                result.put("smali", smali);
-                result.put("engine", "java");
-                return result;
-            } else {
-                throw new IOException("Failed to generate smali for: " + className);
-            }
-        } finally {
-            deleteRecursive(tempDir);
-        }
+        throw new UnsupportedOperationException("C++ library not available for classToSmali");
     }
 
     /**
@@ -978,15 +938,12 @@ public class DexManager {
                     }
                 }
             } catch (Exception e) {
-                Log.w(TAG, "C++ disassemble failed, fallback to Java", e);
+                Log.w(TAG, "C++ disassemble failed", e);
+                throw new Exception("C++ disassemble failed: " + e.getMessage());
             }
         }
 
-        // Java 回退实现
-        BaksmaliOptions options = new BaksmaliOptions();
-        Baksmali.disassembleDexFile(session.originalDexFile, outDir, 4, options);
-        
-        Log.d(TAG, "Disassembled to: " + outputDir);
+        throw new UnsupportedOperationException("C++ library not available for disassemble");
     }
 
     /**
@@ -2272,20 +2229,11 @@ public class DexManager {
     }
 
     /**
-     * 获取类的 Smali 代码（内部方法）
+     * 获取类的 Smali 代码（内部方法）- 使用 C++ 实现
      */
     private String getSmaliForClass(DexBackedDexFile dexFile, ClassDef classDef) {
-        try {
-            BaksmaliOptions options = new BaksmaliOptions();
-            ClassDefinition classDefinition = new ClassDefinition(options, classDef);
-            java.io.StringWriter stringWriter = new java.io.StringWriter();
-            BaksmaliWriter writer = new BaksmaliWriter(stringWriter, null);
-            classDefinition.writeTo(writer);
-            writer.close();
-            return stringWriter.toString();
-        } catch (Exception e) {
-            return "";
-        }
+        // 此方法已弃用，使用 C++ 实现
+        return "";
     }
 
 
@@ -3115,6 +3063,9 @@ public class DexManager {
             dexInputStream.close();
             byte[] dexBytes = baos.toByteArray();
             
+            // 保存 DEX 字节用于 C++ 操作
+            cache.dexBytes = dexBytes;
+            
             // 解析 DEX 文件并缓存所有 ClassDef
             DexBackedDexFile dexFile = new DexBackedDexFile(Opcodes.getDefault(), dexBytes);
             cache.dexVersion = 35; // 默认 DEX 版本
@@ -3146,7 +3097,7 @@ public class DexManager {
     }
     
     /**
-     * 从 APK 中的 DEX 文件获取类的 Smali 代码（使用缓存）
+     * 从 APK 中的 DEX 文件获取类的 Smali 代码（使用 C++ 实现）
      */
     public JSObject getClassSmaliFromApk(String apkPath, String dexPath, String className) throws Exception {
         JSObject result = new JSObject();
@@ -3161,26 +3112,22 @@ public class DexManager {
         String targetType = convertClassNameToType(className);
         
         try {
-            // 使用缓存获取 ClassDef
-            ApkDexCache cache = getOrCreateDexCache(apkPath, dexPath);
-            ClassDef targetClass = cache.classDefMap.get(targetType);
-            
-            if (targetClass == null) {
-                result.put("smali", "# 类未找到: " + className + "\n# 目标类型: " + targetType);
-                return result;
+            // 使用 C++ 实现获取 Smali
+            if (CppDex.isAvailable()) {
+                ApkDexCache cache = getOrCreateDexCache(apkPath, dexPath);
+                if (cache.dexBytes != null) {
+                    String smaliJson = CppDex.getClassSmali(cache.dexBytes, targetType);
+                    if (smaliJson != null && !smaliJson.contains("\"error\"")) {
+                        org.json.JSONObject smaliResult = new org.json.JSONObject(smaliJson);
+                        String smali = smaliResult.optString("smali", "");
+                        if (!smali.isEmpty()) {
+                            result.put("smali", smali);
+                            return result;
+                        }
+                    }
+                }
             }
-            
-            // 使用 baksmali 库生成正确的 Smali 代码
-            BaksmaliOptions options = new BaksmaliOptions();
-            ClassDefinition classDefinition = new ClassDefinition(options, targetClass);
-            
-            java.io.StringWriter stringWriter = new java.io.StringWriter();
-            BaksmaliWriter writer = new BaksmaliWriter(stringWriter, null);
-            classDefinition.writeTo(writer);
-            writer.close();
-            
-            result.put("smali", stringWriter.toString());
-            
+            result.put("smali", "# 类未找到或 C++ 库不可用: " + className);
         } catch (Exception e) {
             result.put("smali", "# 加载失败: " + e.getMessage());
         }
