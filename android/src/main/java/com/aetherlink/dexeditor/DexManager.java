@@ -641,28 +641,39 @@ public class DexManager {
     }
 
     /**
-     * 设置方法的 Smali 代码
+     * 设置方法的 Smali 代码（优先使用 C++ 实现）
      */
     public void setMethodSmali(String sessionId, String className,
                                String methodName, String methodSignature,
                                String smaliCode) throws Exception {
         DexSession session = getSession(sessionId);
+        
+        // 获取原类的 Smali 并替换方法
+        String classSmali = classToSmali(sessionId, className).getString("smali");
+        String modifiedSmali = replaceMethodInSmali(classSmali, methodName, methodSignature, smaliCode);
+        
+        // 优先使用 C++ 实现
+        if (CppDex.isAvailable() && session.dexBytes != null) {
+            try {
+                byte[] newDexBytes = CppDex.modifyClass(session.dexBytes, className, modifiedSmali);
+                if (newDexBytes != null) {
+                    session.dexBytes = newDexBytes;
+                    session.modified = true;
+                    Log.d(TAG, "Modified method via C++: " + className + "->" + methodName);
+                    return;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "C++ modifyClass failed, fallback to Java", e);
+            }
+        }
+        
+        // Java 回退实现
         ClassDef classDef = findClass(session, className);
-
         if (classDef == null) {
             throw new IllegalArgumentException("Class not found: " + className);
         }
-
-        // 获取原类的 Smali
-        String classSmali = classToSmali(sessionId, className).getString("smali");
         
-        // 替换方法
-        String modifiedSmali = replaceMethodInSmali(classSmali, methodName, methodSignature, smaliCode);
-        
-        // 重新编译
         ClassDef modifiedClass = compileSmaliToClass(modifiedSmali, session.originalDexFile.getOpcodes());
-        
-        // 更新会话
         session.removedClasses.add(className);
         session.modifiedClasses.add(modifiedClass);
         session.modified = true;
@@ -933,7 +944,7 @@ public class DexManager {
     }
 
     /**
-     * 汇编 Smali 目录为 DEX
+     * 汇编 Smali 目录为 DEX（优先使用 C++ 实现）
      */
     public JSObject assemble(String smaliDir, String outputPath) throws Exception {
         File inputDir = new File(smaliDir);
@@ -944,7 +955,35 @@ public class DexManager {
         }
 
         outputFile.getParentFile().mkdirs();
+        
+        // 优先使用 C++ 实现
+        if (CppDex.isAvailable()) {
+            try {
+                // 读取所有 smali 文件并合并
+                List<File> smaliFiles = collectSmaliFiles(inputDir);
+                StringBuilder allSmali = new StringBuilder();
+                for (File f : smaliFiles) {
+                    allSmali.append(readFileContent(f));
+                    allSmali.append("\n\n");
+                }
+                
+                byte[] dexBytes = CppDex.smaliToDex(allSmali.toString());
+                if (dexBytes != null && dexBytes.length > 0) {
+                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(outputFile)) {
+                        fos.write(dexBytes);
+                    }
+                    JSObject result = new JSObject();
+                    result.put("success", true);
+                    result.put("outputPath", outputPath);
+                    result.put("engine", "cpp");
+                    return result;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "C++ smaliToDex failed, fallback to Java", e);
+            }
+        }
 
+        // Java 回退实现
         SmaliOptions options = new SmaliOptions();
         options.outputDexFile = outputPath;
         
@@ -959,6 +998,7 @@ public class DexManager {
         JSObject result = new JSObject();
         result.put("success", success);
         result.put("outputPath", outputPath);
+        result.put("engine", "java");
         return result;
     }
 
