@@ -938,13 +938,51 @@ public class DexManager {
     }
 
     /**
-     * 反汇编整个 DEX 到目录
+     * 反汇编整个 DEX 到目录（优先使用 C++ 实现）
      */
     public void disassemble(String sessionId, String outputDir) throws Exception {
         DexSession session = getSession(sessionId);
         File outDir = new File(outputDir);
         outDir.mkdirs();
 
+        // 优先使用 C++ 实现 - 逐个类反汇编
+        if (CppDex.isAvailable() && session.dexBytes != null) {
+            try {
+                // 获取所有类
+                String classesJson = CppDex.listClasses(session.dexBytes, "", 0, 10000);
+                if (classesJson != null && !classesJson.contains("\"error\"")) {
+                    org.json.JSONObject result = new org.json.JSONObject(classesJson);
+                    org.json.JSONArray classes = result.optJSONArray("classes");
+                    if (classes != null) {
+                        for (int i = 0; i < classes.length(); i++) {
+                            String className = classes.getString(i);
+                            try {
+                                String smaliJson = CppDex.getClassSmali(session.dexBytes, className);
+                                if (smaliJson != null && !smaliJson.contains("\"error\"")) {
+                                    org.json.JSONObject smaliResult = new org.json.JSONObject(smaliJson);
+                                    String smali = smaliResult.optString("smali", "");
+                                    if (!smali.isEmpty()) {
+                                        // 保存到文件
+                                        String filePath = className.substring(1, className.length() - 1) + ".smali";
+                                        File smaliFile = new File(outDir, filePath);
+                                        smaliFile.getParentFile().mkdirs();
+                                        writeFileContent(smaliFile, smali);
+                                    }
+                                }
+                            } catch (Exception e) {
+                                Log.w(TAG, "Failed to disassemble class: " + className, e);
+                            }
+                        }
+                        Log.d(TAG, "Disassembled to (C++): " + outputDir);
+                        return;
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "C++ disassemble failed, fallback to Java", e);
+            }
+        }
+
+        // Java 回退实现
         BaksmaliOptions options = new BaksmaliOptions();
         Baksmali.disassembleDexFile(session.originalDexFile, outDir, 4, options);
         
@@ -1650,6 +1688,12 @@ public class DexManager {
             }
         }
         return content.toString();
+    }
+
+    private void writeFileContent(File file, String content) throws IOException {
+        try (java.io.BufferedWriter writer = new java.io.BufferedWriter(new java.io.FileWriter(file))) {
+            writer.write(content);
+        }
     }
 
     private byte[] readFileBytes(File file) throws IOException {
