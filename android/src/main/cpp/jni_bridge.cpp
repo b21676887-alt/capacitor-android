@@ -121,112 +121,168 @@ Java_com_aetherlink_dexeditor_CppDex_listClasses(JNIEnv* env, jclass, jbyteArray
     return string_to_jstring(env, result.dump());
 }
 
+// Helper: Safe ASCII lowercase (UTF-8 safe - only converts ASCII a-z)
+static std::string safe_tolower_ascii(const std::string& s) {
+    std::string result = s;
+    for (char& c : result) {
+        if (c >= 'A' && c <= 'Z') {
+            c = c + ('a' - 'A');
+        }
+    }
+    return result;
+}
+
+// Helper: Safe string contains check (UTF-8 safe)
+static bool safe_contains(const std::string& haystack, const std::string& needle, bool caseSensitive) {
+    if (caseSensitive) {
+        return haystack.find(needle) != std::string::npos;
+    }
+    // Only lowercase ASCII for case-insensitive search
+    std::string h_lower = safe_tolower_ascii(haystack);
+    std::string n_lower = safe_tolower_ascii(needle);
+    return h_lower.find(n_lower) != std::string::npos;
+}
+
+// Helper: Sanitize string for JSON (replace invalid UTF-8 sequences)
+static std::string sanitize_utf8(const std::string& s) {
+    std::string result;
+    result.reserve(s.size());
+    size_t i = 0;
+    while (i < s.size()) {
+        unsigned char c = s[i];
+        if (c < 0x80) {
+            // ASCII
+            result += c;
+            i++;
+        } else if ((c & 0xE0) == 0xC0 && i + 1 < s.size()) {
+            // 2-byte UTF-8
+            if ((s[i+1] & 0xC0) == 0x80) {
+                result += s[i];
+                result += s[i+1];
+                i += 2;
+            } else {
+                result += '?';
+                i++;
+            }
+        } else if ((c & 0xF0) == 0xE0 && i + 2 < s.size()) {
+            // 3-byte UTF-8
+            if ((s[i+1] & 0xC0) == 0x80 && (s[i+2] & 0xC0) == 0x80) {
+                result += s[i];
+                result += s[i+1];
+                result += s[i+2];
+                i += 3;
+            } else {
+                result += '?';
+                i++;
+            }
+        } else if ((c & 0xF8) == 0xF0 && i + 3 < s.size()) {
+            // 4-byte UTF-8
+            if ((s[i+1] & 0xC0) == 0x80 && (s[i+2] & 0xC0) == 0x80 && (s[i+3] & 0xC0) == 0x80) {
+                result += s[i];
+                result += s[i+1];
+                result += s[i+2];
+                result += s[i+3];
+                i += 4;
+            } else {
+                result += '?';
+                i++;
+            }
+        } else {
+            // Invalid UTF-8, replace with ?
+            result += '?';
+            i++;
+        }
+    }
+    return result;
+}
+
 JNIEXPORT jstring JNICALL
 Java_com_aetherlink_dexeditor_CppDex_searchInDex(JNIEnv* env, jclass, jbyteArray dexBytes,
                                                   jstring query, jstring searchType,
                                                   jboolean caseSensitive, jint maxResults) {
-    auto data = jbyteArray_to_vector(env, dexBytes);
-    std::string q = jstring_to_string(env, query);
-    std::string type = jstring_to_string(env, searchType);
-    
-    dex::DexParser parser;
-    if (!parser.parse(data)) {
-        json error = {{"error", "Failed to parse DEX"}};
+    try {
+        auto data = jbyteArray_to_vector(env, dexBytes);
+        std::string q = jstring_to_string(env, query);
+        std::string type = jstring_to_string(env, searchType);
+        
+        dex::DexParser parser;
+        if (!parser.parse(data)) {
+            json error = {{"error", "Failed to parse DEX"}};
+            return string_to_jstring(env, error.dump());
+        }
+        
+        json results = json::array();
+        int count = 0;
+        
+        if (type == "string") {
+            for (const auto& s : parser.strings()) {
+                if (count >= maxResults) break;
+                
+                if (safe_contains(s, q, caseSensitive)) {
+                    // Sanitize string for JSON
+                    results.push_back({{"type", "string"}, {"value", sanitize_utf8(s)}});
+                    count++;
+                }
+            }
+        } else if (type == "class") {
+            for (const auto& cls : parser.classes()) {
+                if (count >= maxResults) break;
+                std::string class_name = parser.get_class_name(cls.class_idx);
+                
+                if (safe_contains(class_name, q, caseSensitive)) {
+                    results.push_back({{"type", "class"}, {"name", sanitize_utf8(class_name)}});
+                    count++;
+                }
+            }
+        } else if (type == "method") {
+            auto methods = parser.get_methods();
+            for (const auto& m : methods) {
+                if (count >= maxResults) break;
+                
+                if (safe_contains(m.method_name, q, caseSensitive)) {
+                    results.push_back({
+                        {"type", "method"},
+                        {"class", sanitize_utf8(m.class_name)},
+                        {"name", sanitize_utf8(m.method_name)},
+                        {"prototype", sanitize_utf8(m.prototype)}
+                    });
+                    count++;
+                }
+            }
+        } else if (type == "field") {
+            auto fields = parser.get_fields();
+            for (const auto& f : fields) {
+                if (count >= maxResults) break;
+                
+                if (safe_contains(f.field_name, q, caseSensitive)) {
+                    results.push_back({
+                        {"type", "field"},
+                        {"class", sanitize_utf8(f.class_name)},
+                        {"name", sanitize_utf8(f.field_name)},
+                        {"fieldType", sanitize_utf8(f.type_name)}
+                    });
+                    count++;
+                }
+            }
+        }
+        
+        json result = {
+            {"query", sanitize_utf8(q)},
+            {"searchType", type},
+            {"results", results},
+            {"count", results.size()}
+        };
+        
+        return string_to_jstring(env, result.dump());
+    } catch (const std::exception& e) {
+        LOGE("searchInDex exception: %s", e.what());
+        json error = {{"error", std::string("Search failed: ") + e.what()}};
+        return string_to_jstring(env, error.dump());
+    } catch (...) {
+        LOGE("searchInDex unknown exception");
+        json error = {{"error", "Search failed: unknown error"}};
         return string_to_jstring(env, error.dump());
     }
-    
-    json results = json::array();
-    int count = 0;
-    
-    // 转换为小写用于不区分大小写搜索
-    std::string q_lower = q;
-    if (!caseSensitive) {
-        std::transform(q_lower.begin(), q_lower.end(), q_lower.begin(), ::tolower);
-    }
-    
-    if (type == "string") {
-        for (const auto& s : parser.strings()) {
-            if (count >= maxResults) break;
-            
-            std::string s_check = caseSensitive ? s : s;
-            if (!caseSensitive) {
-                s_check.resize(s.size());
-                std::transform(s.begin(), s.end(), s_check.begin(), ::tolower);
-            }
-            
-            if (s_check.find(q_lower) != std::string::npos) {
-                results.push_back({{"type", "string"}, {"value", s}});
-                count++;
-            }
-        }
-    } else if (type == "class") {
-        for (const auto& cls : parser.classes()) {
-            if (count >= maxResults) break;
-            std::string class_name = parser.get_class_name(cls.class_idx);
-            
-            std::string check = caseSensitive ? class_name : class_name;
-            if (!caseSensitive) {
-                check.resize(class_name.size());
-                std::transform(class_name.begin(), class_name.end(), check.begin(), ::tolower);
-            }
-            
-            if (check.find(q_lower) != std::string::npos) {
-                results.push_back({{"type", "class"}, {"name", class_name}});
-                count++;
-            }
-        }
-    } else if (type == "method") {
-        auto methods = parser.get_methods();
-        for (const auto& m : methods) {
-            if (count >= maxResults) break;
-            
-            std::string check = caseSensitive ? m.method_name : m.method_name;
-            if (!caseSensitive) {
-                check.resize(m.method_name.size());
-                std::transform(m.method_name.begin(), m.method_name.end(), check.begin(), ::tolower);
-            }
-            
-            if (check.find(q_lower) != std::string::npos) {
-                results.push_back({
-                    {"type", "method"},
-                    {"class", m.class_name},
-                    {"name", m.method_name},
-                    {"prototype", m.prototype}
-                });
-                count++;
-            }
-        }
-    } else if (type == "field") {
-        auto fields = parser.get_fields();
-        for (const auto& f : fields) {
-            if (count >= maxResults) break;
-            
-            std::string check = caseSensitive ? f.field_name : f.field_name;
-            if (!caseSensitive) {
-                check.resize(f.field_name.size());
-                std::transform(f.field_name.begin(), f.field_name.end(), check.begin(), ::tolower);
-            }
-            
-            if (check.find(q_lower) != std::string::npos) {
-                results.push_back({
-                    {"type", "field"},
-                    {"class", f.class_name},
-                    {"name", f.field_name},
-                    {"fieldType", f.type_name}
-                });
-                count++;
-            }
-        }
-    }
-    
-    json result = {
-        {"query", q},
-        {"searchType", type},
-        {"results", results},
-        {"count", results.size()}
-    };
-    
-    return string_to_jstring(env, result.dump());
 }
 
 JNIEXPORT jstring JNICALL
