@@ -213,15 +213,29 @@ public class DexManager {
     }
 
     /**
-     * 保存 DEX 文件
+     * 保存 DEX 文件（优先使用 C++ 修改的字节数据）
      */
     public void saveDex(String sessionId, String outputPath) throws Exception {
         DexSession session = getSession(sessionId);
+        
+        File outputFile = new File(outputPath);
+        if (outputFile.getParentFile() != null) {
+            outputFile.getParentFile().mkdirs();
+        }
 
-        // 创建新的 DEX 文件
+        // 如果使用 C++ 修改了 dexBytes，直接保存
+        if (session.dexBytes != null && session.modified && 
+            session.modifiedClasses.isEmpty() && session.removedClasses.isEmpty()) {
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(outputFile)) {
+                fos.write(session.dexBytes);
+            }
+            Log.d(TAG, "Saved DEX (C++ modified) to: " + outputPath);
+            return;
+        }
+
+        // Java 回退实现
         DexPool dexPool = new DexPool(session.originalDexFile.getOpcodes());
 
-        // 添加所有类（排除已删除的，使用修改后的版本）
         Set<String> modifiedClassTypes = new HashSet<>();
         for (ClassDef modifiedClass : session.modifiedClasses) {
             modifiedClassTypes.add(modifiedClass.getType());
@@ -235,13 +249,6 @@ public class DexManager {
             }
         }
 
-        // 写入文件 (使用官方推荐方式)
-        File outputFile = new File(outputPath);
-        if (outputFile.getParentFile() != null) {
-            outputFile.getParentFile().mkdirs();
-        }
-        
-        // 创建临时 DexFile 用于写入
         List<ClassDef> allClasses = new ArrayList<>();
         for (ClassDef c : session.modifiedClasses) {
             allClasses.add(c);
@@ -404,12 +411,27 @@ public class DexManager {
     }
 
     /**
-     * 添加类
+     * 添加类（优先使用 C++ 实现）
      */
     public void addClass(String sessionId, String smaliCode) throws Exception {
         DexSession session = getSession(sessionId);
         
-        // 将 Smali 代码编译为 ClassDef
+        // 优先使用 C++ 实现
+        if (CppDex.isAvailable() && session.dexBytes != null) {
+            try {
+                byte[] newDexBytes = CppDex.addClass(session.dexBytes, smaliCode);
+                if (newDexBytes != null) {
+                    session.dexBytes = newDexBytes;
+                    session.modified = true;
+                    Log.d(TAG, "Added class via C++");
+                    return;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "C++ addClass failed, fallback to Java", e);
+            }
+        }
+        
+        // Java 回退实现
         ClassDef newClass = compileSmaliToClass(smaliCode, session.originalDexFile.getOpcodes());
         session.modifiedClasses.add(newClass);
         session.modified = true;
@@ -418,10 +440,27 @@ public class DexManager {
     }
 
     /**
-     * 删除类
+     * 删除类（优先使用 C++ 实现）
      */
     public void removeClass(String sessionId, String className) throws Exception {
         DexSession session = getSession(sessionId);
+        
+        // 优先使用 C++ 实现
+        if (CppDex.isAvailable() && session.dexBytes != null) {
+            try {
+                byte[] newDexBytes = CppDex.deleteClass(session.dexBytes, className);
+                if (newDexBytes != null) {
+                    session.dexBytes = newDexBytes;
+                    session.modified = true;
+                    Log.d(TAG, "Removed class via C++: " + className);
+                    return;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "C++ removeClass failed, fallback to Java", e);
+            }
+        }
+        
+        // Java 回退实现
         session.removedClasses.add(className);
         session.modified = true;
         
