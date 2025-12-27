@@ -77,10 +77,9 @@ dependencies {
     implementation project(':capacitor-android')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     
-    // dexlib2 & smali - DEX文件编辑核心库 (使用 api 暴露给主项目)
-    // baksmali 已移除 - 使用 C++ 实现
+    // dexlib2 - DEX文件编辑核心库 (使用 api 暴露给主项目)
+    // baksmali 和 smali 已移除 - 使用 C++ 实现
     api 'com.android.tools.smali:smali-dexlib2:3.0.3'
-    api 'com.android.tools.smali:smali:3.0.3'
     
     // Guava - dexlib2 依赖
     api 'com.google.guava:guava:32.1.3-android'

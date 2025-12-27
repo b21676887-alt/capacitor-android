@@ -27,8 +27,7 @@ import com.android.tools.smali.dexlib2.immutable.ImmutableField;
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod;
 import com.android.tools.smali.dexlib2.writer.io.FileDataStore;
 import com.android.tools.smali.dexlib2.writer.pool.DexPool;
-import com.android.tools.smali.smali.Smali;
-import com.android.tools.smali.smali.SmaliOptions;
+// smali 依赖已移除 - 使用 C++ 实现
 
 import org.json.JSONArray;
 
@@ -982,27 +981,12 @@ public class DexManager {
                     return result;
                 }
             } catch (Exception e) {
-                Log.w(TAG, "C++ smaliToDex failed, fallback to Java", e);
+                Log.e(TAG, "C++ smaliToDex failed", e);
+                throw new Exception("C++ smaliToDex failed: " + e.getMessage());
             }
         }
 
-        // Java 回退实现
-        SmaliOptions options = new SmaliOptions();
-        options.outputDexFile = outputPath;
-        
-        List<File> smaliFiles = collectSmaliFiles(inputDir);
-        List<String> filePaths = new ArrayList<>();
-        for (File f : smaliFiles) {
-            filePaths.add(f.getAbsolutePath());
-        }
-
-        boolean success = Smali.assemble(options, filePaths);
-
-        JSObject result = new JSObject();
-        result.put("success", success);
-        result.put("outputPath", outputPath);
-        result.put("engine", "java");
-        return result;
+        throw new UnsupportedOperationException("C++ library not available for smaliToDex");
     }
 
     // ==================== 搜索操作 ====================
@@ -1492,44 +1476,18 @@ public class DexManager {
     }
 
     private ClassDef compileSmaliToClass(String smaliCode, Opcodes opcodes) throws Exception {
-        // 创建临时文件
-        File tempDir = File.createTempFile("smali_compile_", "_temp");
-        tempDir.delete();
-        tempDir.mkdirs();
-
-        try {
-            // 写入 smali 文件
-            File smaliFile = new File(tempDir, "temp.smali");
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(smaliFile))) {
-                writer.write(smaliCode);
+        // 使用 C++ 实现编译 smali
+        if (CppDex.isAvailable()) {
+            byte[] dexBytes = CppDex.smaliToDex(smaliCode);
+            if (dexBytes != null && dexBytes.length > 0) {
+                DexBackedDexFile compiledDex = new DexBackedDexFile(opcodes, dexBytes);
+                for (ClassDef classDef : compiledDex.getClasses()) {
+                    return classDef;
+                }
             }
-
-            // 编译
-            File outputDex = new File(tempDir, "output.dex");
-            SmaliOptions options = new SmaliOptions();
-            options.outputDexFile = outputDex.getAbsolutePath();
-            
-            List<String> files = new ArrayList<>();
-            files.add(smaliFile.getAbsolutePath());
-            
-            if (!Smali.assemble(options, files)) {
-                throw new Exception("Failed to compile smali code");
-            }
-
-            // 读取编译后的类
-            DexBackedDexFile compiledDex = DexBackedDexFile.fromInputStream(
-                opcodes,
-                new FileInputStream(outputDex)
-            );
-
-            for (ClassDef classDef : compiledDex.getClasses()) {
-                return classDef; // 返回第一个类
-            }
-
-            throw new Exception("No class found in compiled smali");
-        } finally {
-            deleteRecursive(tempDir);
+            throw new Exception("C++ smaliToDex returned no classes");
         }
+        throw new UnsupportedOperationException("C++ library not available for smaliToDex");
     }
 
     private String extractMethodSmali(String classSmali, String methodName, String signature) {
@@ -3158,18 +3116,15 @@ public class DexManager {
         }
         
         try {
-            // 使用优化的 smali2.Smali 直接编译成 ClassDef（无需临时文件）
+            // 使用 C++ 实现编译 Smali
             reportTitle("编译 Smali");
             reportMessage("正在编译 " + className + "...");
             reportProgress(10, 100);
             
-            com.android.tools.smali.smali.SmaliOptions options = new com.android.tools.smali.smali.SmaliOptions();
-            options.apiLevel = 30;
-            
-            // 直接编译 Smali 代码为 ClassDef
+            // 使用 C++ 编译 Smali 代码为 ClassDef
             ClassDef newClassDef;
             try {
-                newClassDef = com.android.tools.smali.smali2.Smali.assemble(smaliContent, options, 35);
+                newClassDef = compileSmaliToClass(smaliContent, Opcodes.getDefault());
             } catch (Exception e) {
                 result.put("success", false);
                 result.put("error", "Smali 编译失败: " + e.getMessage());
@@ -3177,7 +3132,7 @@ public class DexManager {
             }
             
             reportProgress(20, 100);
-            Log.d(TAG, "Smali compiled successfully to ClassDef");
+            Log.d(TAG, "Smali compiled successfully to ClassDef (C++)");
             
             // 使用缓存获取 ClassDef（核心优化）
             reportTitle("合并 DEX");
