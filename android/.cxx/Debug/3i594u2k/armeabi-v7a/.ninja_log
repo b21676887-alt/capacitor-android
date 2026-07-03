@@ -43,3 +43,7 @@
 3	3425	7885231966640122	CMakeFiles/dex_cpp.dir/dex/smali_to_java.cpp.o	2e0736c258443284
 10	4227	7885231974645939	CMakeFiles/dex_cpp.dir/jni_bridge.cpp.o	ba7bd2342aeeb51c
 4228	4301	7885231975343859	K:/Cherry/capacitor-dex-editor/android/build/intermediates/cxx/Debug/3i594u2k/obj/armeabi-v7a/libdex_cpp.so	6e65105f63f9b429
+1	3832	7885246300635997	CMakeFiles/dex_cpp.dir/jni_bridge.cpp.o	ba7bd2342aeeb51c
+3832	3930	7885246301546180	K:/Cherry/capacitor-dex-editor/android/build/intermediates/cxx/Debug/3i594u2k/obj/armeabi-v7a/libdex_cpp.so	6e65105f63f9b429
+1	3637	7885248840712684	CMakeFiles/dex_cpp.dir/jni_bridge.cpp.o	ba7bd2342aeeb51c
+3637	3713	7885248841455097	K:/Cherry/capacitor-dex-editor/android/build/intermediates/cxx/Debug/3i594u2k/obj/armeabi-v7a/libdex_cpp.so	6e65105f63f9b429

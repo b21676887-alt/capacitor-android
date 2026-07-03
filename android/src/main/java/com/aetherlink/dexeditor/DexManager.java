@@ -46,6 +46,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import com.aetherlink.dexeditor.utils.SmaliUtils;
+import com.aetherlink.dexeditor.utils.FileUtils;
+import com.aetherlink.dexeditor.ops.ApkResourceOperations;
+
 /**
  * DexManager - 封装 dexlib2 全部功能
  * 管理多个 DEX 会话，支持加载、编辑、保存 DEX 文件
@@ -1490,160 +1494,50 @@ public class DexManager {
         throw new UnsupportedOperationException("C++ library not available for smaliToDex");
     }
 
+    // ==================== 工具方法委托到 SmaliUtils 和 FileUtils ====================
+
     private String extractMethodSmali(String classSmali, String methodName, String signature) {
-        // 简化实现：查找方法定义并提取
-        String methodStart = ".method";
-        String methodEnd = ".end method";
-        
-        int searchStart = 0;
-        while (true) {
-            int start = classSmali.indexOf(methodStart, searchStart);
-            if (start == -1) break;
-            
-            int end = classSmali.indexOf(methodEnd, start);
-            if (end == -1) break;
-            
-            String methodBlock = classSmali.substring(start, end + methodEnd.length());
-            if (methodBlock.contains(methodName)) {
-                return methodBlock;
-            }
-            
-            searchStart = end + methodEnd.length();
-        }
-        
-        return "";
+        return SmaliUtils.extractMethodSmali(classSmali, methodName, signature);
     }
 
-
     private String insertMethodToSmali(String classSmali, String methodCode) {
-        // 在类结束前插入方法
-        int endClass = classSmali.lastIndexOf(".end class");
-        if (endClass != -1) {
-            return classSmali.substring(0, endClass) + "\n" + methodCode + "\n\n" + 
-                   classSmali.substring(endClass);
-        }
-        return classSmali + "\n" + methodCode;
+        return SmaliUtils.insertMethodToSmali(classSmali, methodCode);
     }
 
     private String removeMethodFromSmali(String classSmali, String methodName, String signature) {
-        String methodStart = ".method";
-        String methodEnd = ".end method";
-        
-        int searchStart = 0;
-        while (true) {
-            int start = classSmali.indexOf(methodStart, searchStart);
-            if (start == -1) break;
-            
-            int end = classSmali.indexOf(methodEnd, start);
-            if (end == -1) break;
-            
-            String methodBlock = classSmali.substring(start, end + methodEnd.length());
-            if (methodBlock.contains(methodName)) {
-                return classSmali.substring(0, start) + classSmali.substring(end + methodEnd.length());
-            }
-            
-            searchStart = end + methodEnd.length();
-        }
-        
-        return classSmali;
+        return SmaliUtils.removeMethodFromSmali(classSmali, methodName, signature);
     }
 
     private String insertFieldToSmali(String classSmali, String fieldDef) {
-        // 在第一个方法前或类结束前插入字段
-        int methodPos = classSmali.indexOf(".method");
-        if (methodPos != -1) {
-            return classSmali.substring(0, methodPos) + fieldDef + "\n\n" + 
-                   classSmali.substring(methodPos);
-        }
-        
-        int endClass = classSmali.lastIndexOf(".end class");
-        if (endClass != -1) {
-            return classSmali.substring(0, endClass) + fieldDef + "\n\n" + 
-                   classSmali.substring(endClass);
-        }
-        
-        return classSmali + "\n" + fieldDef;
+        return SmaliUtils.insertFieldToSmali(classSmali, fieldDef);
     }
 
     private String removeFieldFromSmali(String classSmali, String fieldName) {
-        // 简化实现：移除包含字段名的 .field 行
-        String[] lines = classSmali.split("\n");
-        StringBuilder result = new StringBuilder();
-        
-        for (String line : lines) {
-            if (!(line.trim().startsWith(".field") && line.contains(fieldName))) {
-                result.append(line).append("\n");
-            }
-        }
-        
-        return result.toString();
+        return SmaliUtils.removeFieldFromSmali(classSmali, fieldName);
     }
 
     private List<File> collectSmaliFiles(File dir) {
-        List<File> files = new ArrayList<>();
-        File[] children = dir.listFiles();
-        if (children != null) {
-            for (File child : children) {
-                if (child.isDirectory()) {
-                    files.addAll(collectSmaliFiles(child));
-                } else if (child.getName().endsWith(".smali")) {
-                    files.add(child);
-                }
-            }
-        }
-        return files;
+        return FileUtils.collectSmaliFiles(dir);
     }
 
     private String readFileContent(File file) throws IOException {
-        StringBuilder content = new StringBuilder();
-        try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(file))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                content.append(line).append("\n");
-            }
-        }
-        return content.toString();
+        return FileUtils.readFileContent(file);
     }
 
     private void writeFileContent(File file, String content) throws IOException {
-        try (java.io.BufferedWriter writer = new java.io.BufferedWriter(new java.io.FileWriter(file))) {
-            writer.write(content);
-        }
+        FileUtils.writeFileContent(file, content);
     }
 
     private byte[] readFileBytes(File file) throws IOException {
-        byte[] bytes = new byte[(int) file.length()];
-        try (FileInputStream fis = new FileInputStream(file)) {
-            fis.read(bytes);
-        }
-        return bytes;
+        return FileUtils.readFileBytes(file);
     }
 
     private void deleteRecursive(File file) {
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children != null) {
-                for (File child : children) {
-                    deleteRecursive(child);
-                }
-            }
-        }
-        file.delete();
+        FileUtils.deleteRecursive(file);
     }
 
     private int countMatches(String text, String query, boolean regex) {
-        int count = 0;
-        if (regex) {
-            java.util.regex.Matcher matcher = Pattern.compile(query).matcher(text);
-            while (matcher.find()) count++;
-        } else {
-            int index = 0;
-            while ((index = text.indexOf(query, index)) != -1) {
-                count++;
-                index += query.length();
-            }
-        }
-        return count;
+        return SmaliUtils.countMatches(text, query, regex);
     }
 
     // ==================== APK 内 DEX 操作（无需会话） ====================
@@ -2405,75 +2299,11 @@ public class DexManager {
      * 从 Smali 代码中提取指定方法
      */
     private String extractMethodFromSmali(String smaliContent, String methodName, String methodSignature) {
-        String[] lines = smaliContent.split("\n");
-        StringBuilder methodCode = new StringBuilder();
-        boolean inMethod = false;
-        boolean found = false;
-        
-        for (String line : lines) {
-            if (line.startsWith(".method ")) {
-                // 检查是否是目标方法
-                if (line.contains(" " + methodName + "(") || line.contains(" " + methodName + ";")) {
-                    // 如果指定了签名，进一步匹配
-                    if (methodSignature == null || methodSignature.isEmpty() || line.contains(methodSignature)) {
-                        inMethod = true;
-                        found = true;
-                    }
-                }
-            }
-            
-            if (inMethod) {
-                methodCode.append(line).append("\n");
-                if (line.equals(".end method")) {
-                    break;
-                }
-            }
-        }
-        
-        if (!found) {
-            return "# 方法未找到: " + methodName + (methodSignature != null ? methodSignature : "");
-        }
-        
-        return methodCode.toString();
+        return SmaliUtils.extractMethodFromSmali(smaliContent, methodName, methodSignature);
     }
 
-    /**
-     * 替换 Smali 代码中的指定方法
-     */
     private String replaceMethodInSmali(String smaliContent, String methodName, String methodSignature, String newMethodCode) {
-        String[] lines = smaliContent.split("\n");
-        StringBuilder result = new StringBuilder();
-        boolean inMethod = false;
-        boolean replaced = false;
-        
-        for (String line : lines) {
-            if (line.startsWith(".method ")) {
-                if (line.contains(" " + methodName + "(") || line.contains(" " + methodName + ";")) {
-                    if (methodSignature == null || methodSignature.isEmpty() || line.contains(methodSignature)) {
-                        // 插入新方法代码
-                        result.append(newMethodCode.trim()).append("\n");
-                        inMethod = true;
-                        replaced = true;
-                        continue;
-                    }
-                }
-            }
-            
-            if (inMethod) {
-                if (line.equals(".end method")) {
-                    inMethod = false;
-                }
-                continue;
-            }
-            
-            result.append(line).append("\n");
-        }
-        
-        if (!replaced) {
-            throw new IllegalArgumentException("Method not found: " + methodName);
-        }
-        
-        return result.toString();
+        return SmaliUtils.replaceMethodInSmali(smaliContent, methodName, methodSignature, newMethodCode);
     }
 
     /**
@@ -2587,78 +2417,7 @@ public class DexManager {
      * 修改 APK 中的资源文件
      */
     public JSObject modifyResourceInApk(String apkPath, String resourcePath, String newContent) throws Exception {
-        JSObject result = new JSObject();
-        
-        // 注意：这是一个简化实现，实际上修改二进制 XML 需要使用 AXML 编码
-        // 这里仅支持非编译的文本文件（如 assets 中的文件）
-        
-        java.io.File apkFile = new java.io.File(apkPath);
-        java.io.File tempApkFile = new java.io.File(apkPath + ".tmp");
-        
-        java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new java.io.FileInputStream(apkFile));
-        java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(tempApkFile));
-        
-        java.util.zip.ZipEntry entry;
-        boolean found = false;
-        
-        while ((entry = zis.getNextEntry()) != null) {
-            String entryName = entry.getName();
-            
-            if (entryName.equals(resourcePath) || entryName.equals(resourcePath.replaceFirst("^/+", ""))) {
-                // 替换资源内容
-                java.util.zip.ZipEntry newEntry = new java.util.zip.ZipEntry(entryName);
-                byte[] contentBytes = newContent.getBytes("UTF-8");
-                newEntry.setSize(contentBytes.length);
-                zos.putNextEntry(newEntry);
-                zos.write(contentBytes);
-                zos.closeEntry();
-                found = true;
-            } else {
-                // 复制原内容
-                java.util.zip.ZipEntry newEntry = new java.util.zip.ZipEntry(entryName);
-                if (entry.getMethod() == java.util.zip.ZipEntry.STORED) {
-                    newEntry.setMethod(java.util.zip.ZipEntry.STORED);
-                    newEntry.setSize(entry.getSize());
-                    newEntry.setCrc(entry.getCrc());
-                }
-                zos.putNextEntry(newEntry);
-                
-                byte[] buffer = new byte[8192];
-                int len;
-                while ((len = zis.read(buffer)) > 0) {
-                    zos.write(buffer, 0, len);
-                }
-                zos.closeEntry();
-            }
-        }
-        
-        zis.close();
-        zos.close();
-        
-        if (!found) {
-            tempApkFile.delete();
-            result.put("success", false);
-            result.put("error", "资源文件未找到: " + resourcePath);
-            return result;
-        }
-        
-        // 替换原文件
-        if (!apkFile.delete()) {
-            tempApkFile.delete();
-            result.put("success", false);
-            result.put("error", "无法删除原 APK");
-            return result;
-        }
-        
-        if (!tempApkFile.renameTo(apkFile)) {
-            copyFile(tempApkFile, apkFile);
-            tempApkFile.delete();
-        }
-        
-        result.put("success", true);
-        result.put("message", "资源文件已修改");
-        result.put("needSign", true);
-        return result;
+        return ApkResourceOperations.modifyResourceInApk(apkPath, resourcePath, newContent, false);
     }
 
     /**
@@ -3281,571 +3040,38 @@ public class DexManager {
 
     // ==================== XML/资源操作方法 ====================
 
-    /**
-     * 获取 APK 的 AndroidManifest.xml（解码为可读 XML）
-     */
+    // ==================== Manifest 和资源操作委托到 ApkResourceOperations ====================
+
     public JSObject getManifestFromApk(String apkPath) throws Exception {
-        JSObject result = new JSObject();
-        
-        java.util.zip.ZipFile zipFile = null;
-        try {
-            zipFile = new java.util.zip.ZipFile(apkPath);
-            java.util.zip.ZipEntry manifestEntry = zipFile.getEntry("AndroidManifest.xml");
-            
-            if (manifestEntry == null) {
-                throw new Exception("AndroidManifest.xml not found in APK");
-            }
-            
-            java.io.InputStream is = zipFile.getInputStream(manifestEntry);
-            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = is.read(buffer)) != -1) {
-                baos.write(buffer, 0, len);
-            }
-            is.close();
-            
-            // 解析二进制 AXML
-            byte[] axmlData = baos.toByteArray();
-            String xmlContent = decodeAxml(axmlData);
-            
-            result.put("manifest", xmlContent);
-            
-        } finally {
-            if (zipFile != null) {
-                try { zipFile.close(); } catch (Exception ignored) {}
-            }
-        }
-        
-        return result;
+        return ApkResourceOperations.getManifestFromApk(apkPath);
     }
 
-    /**
-     * 获取 Manifest 的回退实现（使用简单 AXML 解析器）
-     */
     private String getManifestFallback(String apkPath) {
-        java.util.zip.ZipFile zipFile = null;
-        try {
-            zipFile = new java.util.zip.ZipFile(apkPath);
-            java.util.zip.ZipEntry manifestEntry = zipFile.getEntry("AndroidManifest.xml");
-            
-            if (manifestEntry == null) {
-                return "# AndroidManifest.xml not found";
-            }
-            
-            java.io.InputStream is = zipFile.getInputStream(manifestEntry);
-            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = is.read(buffer)) != -1) {
-                baos.write(buffer, 0, len);
-            }
-            is.close();
-            
-            return decodeAxml(baos.toByteArray());
-            
-        } catch (Exception e) {
-            return "# Error reading manifest: " + e.getMessage();
-        } finally {
-            if (zipFile != null) {
-                try { zipFile.close(); } catch (Exception ignored) {}
-            }
-        }
+        return ApkResourceOperations.getManifestFallback(apkPath);
     }
 
-    /**
-     * 解码二进制 AXML 为可读 XML（使用内置解析器）
-     */
     private String decodeAxml(byte[] axmlData) {
-        try {
-            return AxmlParser.decode(axmlData);
-        } catch (Exception e) {
-            Log.e(TAG, "AXML decode error: " + e.getMessage());
-            return "# 无法解码 AXML: " + e.getMessage();
-        }
+        return ApkResourceOperations.decodeAxml(axmlData);
     }
 
-    /**
-     * 修改 AndroidManifest.xml
-     */
     public JSObject modifyManifestInApk(String apkPath, String newManifestXml) throws Exception {
-        JSObject result = new JSObject();
-        
-        try {
-            // 将 XML 编码为二进制 AXML
-            byte[] newAxmlData = encodeAxml(newManifestXml);
-            
-            // 替换 APK 中的 AndroidManifest.xml
-            java.io.File apkFile = new java.io.File(apkPath);
-            java.io.File tempApk = new java.io.File(apkPath + ".tmp");
-            
-            java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(
-                new java.io.BufferedInputStream(new java.io.FileInputStream(apkFile)));
-            java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(
-                new java.io.BufferedOutputStream(new java.io.FileOutputStream(tempApk)));
-            
-            java.util.zip.ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                if (entry.getName().equals("AndroidManifest.xml")) {
-                    // 替换 Manifest
-                    java.util.zip.ZipEntry newEntry = new java.util.zip.ZipEntry("AndroidManifest.xml");
-                    newEntry.setMethod(java.util.zip.ZipEntry.DEFLATED);
-                    zos.putNextEntry(newEntry);
-                    zos.write(newAxmlData);
-                    zos.closeEntry();
-                } else {
-                    // 复制其他文件
-                    java.util.zip.ZipEntry newEntry = new java.util.zip.ZipEntry(entry.getName());
-                    newEntry.setTime(entry.getTime());
-                    if (entry.getMethod() == java.util.zip.ZipEntry.STORED) {
-                        newEntry.setMethod(java.util.zip.ZipEntry.STORED);
-                        newEntry.setSize(entry.getSize());
-                        newEntry.setCrc(entry.getCrc());
-                    } else {
-                        newEntry.setMethod(java.util.zip.ZipEntry.DEFLATED);
-                    }
-                    zos.putNextEntry(newEntry);
-                    if (!entry.isDirectory()) {
-                        byte[] buf = new byte[8192];
-                        int n;
-                        while ((n = zis.read(buf)) != -1) {
-                            zos.write(buf, 0, n);
-                        }
-                    }
-                    zos.closeEntry();
-                }
-                zis.closeEntry();
-            }
-            
-            zis.close();
-            zos.close();
-            
-            // 替换原文件
-            if (!apkFile.delete()) {
-                Log.e(TAG, "Failed to delete original APK");
-            }
-            if (!tempApk.renameTo(apkFile)) {
-                copyFile(tempApk, apkFile);
-                tempApk.delete();
-            }
-            
-            result.put("success", true);
-            result.put("message", "AndroidManifest.xml 已修改");
-            
-        } catch (Exception e) {
-            Log.e(TAG, "Modify manifest error: " + e.getMessage(), e);
-            result.put("success", false);
-            result.put("error", e.getMessage());
-        }
-        
-        return result;
+        return ApkResourceOperations.modifyManifestInApk(apkPath, newManifestXml);
     }
 
-    /**
-     * 将 XML 编码为二进制 AXML
-     * 注意：AXML 编码比较复杂，暂时不支持修改功能
-     */
     private byte[] encodeAxml(String xmlContent) throws Exception {
-        throw new UnsupportedOperationException("AXML 编码功能暂不支持，请使用 APKTool 进行 Manifest 修改");
+        return ApkResourceOperations.encodeAxml(xmlContent);
     }
 
-    /**
-     * 列出 APK 中的资源文件
-     */
     public JSObject listResourcesInApk(String apkPath, String filter) throws Exception {
-        JSObject result = new JSObject();
-        JSArray resources = new JSArray();
-        
-        java.util.zip.ZipFile zipFile = null;
-        try {
-            zipFile = new java.util.zip.ZipFile(apkPath);
-            java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zipFile.entries();
-            
-            while (entries.hasMoreElements()) {
-                java.util.zip.ZipEntry entry = entries.nextElement();
-                String name = entry.getName();
-                
-                // 只列出 res 目录下的文件
-                if (name.startsWith("res/")) {
-                    // 过滤
-                    if (filter != null && !filter.isEmpty()) {
-                        if (!name.contains(filter)) {
-                            continue;
-                        }
-                    }
-                    
-                    JSObject resource = new JSObject();
-                    resource.put("path", name);
-                    resource.put("size", entry.getSize());
-                    resource.put("isXml", name.endsWith(".xml"));
-                    resources.put(resource);
-                }
-            }
-            
-            result.put("total", resources.length());
-            result.put("resources", resources);
-            
-        } finally {
-            if (zipFile != null) {
-                try { zipFile.close(); } catch (Exception ignored) {}
-            }
-        }
-        
-        return result;
+        return ApkResourceOperations.listResourcesInApk(apkPath, filter);
     }
 
-    /**
-     * 获取 APK 中的资源文件内容
-     */
     public JSObject getResourceFromApk(String apkPath, String resourcePath) throws Exception {
-        JSObject result = new JSObject();
-        
-        java.util.zip.ZipFile zipFile = null;
-        try {
-            zipFile = new java.util.zip.ZipFile(apkPath);
-            java.util.zip.ZipEntry entry = zipFile.getEntry(resourcePath);
-            
-            if (entry == null) {
-                throw new Exception("Resource not found: " + resourcePath);
-            }
-            
-            java.io.InputStream is = zipFile.getInputStream(entry);
-            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = is.read(buffer)) != -1) {
-                baos.write(buffer, 0, len);
-            }
-            is.close();
-            
-            byte[] data = baos.toByteArray();
-            
-            // 如果是 XML 文件，尝试解码 AXML
-            if (resourcePath.endsWith(".xml")) {
-                String xmlContent = decodeAxml(data);
-                result.put("content", xmlContent);
-                result.put("type", "xml");
-            } else {
-                // 其他文件返回 base64
-                result.put("content", android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP));
-                result.put("type", "binary");
-            }
-            
-            result.put("path", resourcePath);
-            result.put("size", data.length);
-            
-        } finally {
-            if (zipFile != null) {
-                try { zipFile.close(); } catch (Exception ignored) {}
-            }
-        }
-        
-        return result;
+        return ApkResourceOperations.getResourceFromApk(apkPath, resourcePath);
     }
 
-    /**
-     * 精准替换 AndroidManifest.xml 中的字符串（二进制替换，支持任意长度）
-     */
     public JSObject replaceInManifest(String apkPath, org.json.JSONArray replacements) throws Exception {
-        JSObject result = new JSObject();
-        JSArray details = new JSArray();
-        int replacedCount = 0;
-        
-        try {
-            // 读取 APK 中的 AndroidManifest.xml
-            java.util.zip.ZipFile zipFile = new java.util.zip.ZipFile(apkPath);
-            java.util.zip.ZipEntry manifestEntry = zipFile.getEntry("AndroidManifest.xml");
-            
-            if (manifestEntry == null) {
-                zipFile.close();
-                throw new Exception("AndroidManifest.xml not found in APK");
-            }
-            
-            // 读取 AXML 数据
-            java.io.InputStream is = zipFile.getInputStream(manifestEntry);
-            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = is.read(buffer)) != -1) {
-                baos.write(buffer, 0, len);
-            }
-            is.close();
-            zipFile.close();
-            
-            byte[] axmlData = baos.toByteArray();
-            
-            // 使用 AxmlEditor 执行替换（支持任意长度）
-            AxmlEditor editor = new AxmlEditor(axmlData);
-            
-            for (int i = 0; i < replacements.length(); i++) {
-                org.json.JSONObject replacement = replacements.getJSONObject(i);
-                String oldValue = replacement.getString("oldValue");
-                String newValue = replacement.getString("newValue");
-                
-                int count = editor.replaceString(oldValue, newValue);
-                
-                JSObject detail = new JSObject();
-                detail.put("oldValue", oldValue);
-                detail.put("newValue", newValue);
-                detail.put("count", count);
-                details.put(detail);
-                
-                replacedCount += count;
-            }
-            
-            if (replacedCount == 0) {
-                result.put("success", true);
-                result.put("replacedCount", 0);
-                result.put("details", details);
-                result.put("message", "未找到匹配的字符串");
-                return result;
-            }
-            
-            // 获取修改后的数据
-            byte[] modifiedData = editor.build();
-            
-            // 替换 APK 中的 AndroidManifest.xml
-            java.io.File apkFile = new java.io.File(apkPath);
-            java.io.File tempApk = new java.io.File(apkPath + ".tmp");
-            
-            java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(
-                new java.io.BufferedInputStream(new java.io.FileInputStream(apkFile)));
-            java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(
-                new java.io.BufferedOutputStream(new java.io.FileOutputStream(tempApk)));
-            
-            java.util.zip.ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                if (entry.getName().equals("AndroidManifest.xml")) {
-                    // 写入修改后的 Manifest
-                    java.util.zip.ZipEntry newEntry = new java.util.zip.ZipEntry("AndroidManifest.xml");
-                    newEntry.setMethod(java.util.zip.ZipEntry.DEFLATED);
-                    zos.putNextEntry(newEntry);
-                    zos.write(modifiedData);
-                    zos.closeEntry();
-                } else {
-                    // 复制其他文件
-                    java.util.zip.ZipEntry newEntry = new java.util.zip.ZipEntry(entry.getName());
-                    newEntry.setTime(entry.getTime());
-                    if (entry.getMethod() == java.util.zip.ZipEntry.STORED) {
-                        newEntry.setMethod(java.util.zip.ZipEntry.STORED);
-                        newEntry.setSize(entry.getSize());
-                        newEntry.setCrc(entry.getCrc());
-                    } else {
-                        newEntry.setMethod(java.util.zip.ZipEntry.DEFLATED);
-                    }
-                    zos.putNextEntry(newEntry);
-                    if (!entry.isDirectory()) {
-                        byte[] buf = new byte[8192];
-                        int n;
-                        while ((n = zis.read(buf)) != -1) {
-                            zos.write(buf, 0, n);
-                        }
-                    }
-                    zos.closeEntry();
-                }
-                zis.closeEntry();
-            }
-            
-            zis.close();
-            zos.close();
-            
-            // 替换原文件
-            if (!apkFile.delete()) {
-                Log.e(TAG, "Failed to delete original APK");
-            }
-            if (!tempApk.renameTo(apkFile)) {
-                copyFile(tempApk, apkFile);
-                tempApk.delete();
-            }
-            
-            result.put("success", true);
-            result.put("replacedCount", replacedCount);
-            result.put("details", details);
-            
-        } catch (Exception e) {
-            Log.e(TAG, "Replace in manifest error: " + e.getMessage(), e);
-            result.put("success", false);
-            result.put("error", e.getMessage());
-        }
-        
-        return result;
-    }
-
-    /**
-     * 替换结果
-     */
-    private static class ReplaceResult {
-        byte[] data;
-        int count;
-        
-        ReplaceResult(byte[] data, int count) {
-            this.data = data;
-            this.count = count;
-        }
-    }
-
-    /**
-     * 在 AXML 二进制数据中替换字符串
-     * 直接修改字符串池中的字符串
-     */
-    private ReplaceResult replaceStringInAxml(byte[] data, String oldValue, String newValue) {
-        int count = 0;
-        
-        try {
-            // 解析 AXML 结构找到字符串池
-            if (data.length < 8) return new ReplaceResult(data, 0);
-            
-            // 检查魔数
-            int magic = (data[0] & 0xFF) | ((data[1] & 0xFF) << 8) | 
-                       ((data[2] & 0xFF) << 16) | ((data[3] & 0xFF) << 24);
-            if (magic != 0x00080003) return new ReplaceResult(data, 0);
-            
-            // 找到字符串池 chunk (类型 0x0001)
-            int pos = 8;
-            while (pos < data.length - 8) {
-                int chunkType = (data[pos] & 0xFF) | ((data[pos + 1] & 0xFF) << 8);
-                int headerSize = (data[pos + 2] & 0xFF) | ((data[pos + 3] & 0xFF) << 8);
-                int chunkSize = (data[pos + 4] & 0xFF) | ((data[pos + 5] & 0xFF) << 8) |
-                               ((data[pos + 6] & 0xFF) << 16) | ((data[pos + 7] & 0xFF) << 24);
-                
-                if (chunkType == 0x0001) {
-                    // 字符串池 chunk
-                    int stringCount = (data[pos + 8] & 0xFF) | ((data[pos + 9] & 0xFF) << 8) |
-                                     ((data[pos + 10] & 0xFF) << 16) | ((data[pos + 11] & 0xFF) << 24);
-                    int styleCount = (data[pos + 12] & 0xFF) | ((data[pos + 13] & 0xFF) << 8) |
-                                    ((data[pos + 14] & 0xFF) << 16) | ((data[pos + 15] & 0xFF) << 24);
-                    int flags = (data[pos + 16] & 0xFF) | ((data[pos + 17] & 0xFF) << 8) |
-                               ((data[pos + 18] & 0xFF) << 16) | ((data[pos + 19] & 0xFF) << 24);
-                    int stringsOffset = (data[pos + 20] & 0xFF) | ((data[pos + 21] & 0xFF) << 8) |
-                                       ((data[pos + 22] & 0xFF) << 16) | ((data[pos + 23] & 0xFF) << 24);
-                    
-                    boolean isUtf8 = (flags & 0x100) != 0;
-                    
-                    // 读取字符串偏移表
-                    int offsetTableStart = pos + 28;
-                    int stringsStart = pos + stringsOffset;
-                    
-                    // 遍历所有字符串
-                    for (int i = 0; i < stringCount; i++) {
-                        int offsetPos = offsetTableStart + i * 4;
-                        int stringOffset = (data[offsetPos] & 0xFF) | ((data[offsetPos + 1] & 0xFF) << 8) |
-                                          ((data[offsetPos + 2] & 0xFF) << 16) | ((data[offsetPos + 3] & 0xFF) << 24);
-                        
-                        int stringPos = stringsStart + stringOffset;
-                        if (stringPos >= data.length) continue;
-                        
-                        // 读取当前字符串
-                        String currentString = readStringFromAxml(data, stringPos, isUtf8);
-                        
-                        // 检查是否匹配
-                        if (currentString.equals(oldValue)) {
-                            // 执行替换（仅当新字符串长度 <= 旧字符串长度时可以直接替换）
-                            if (isUtf8) {
-                                byte[] newBytes = newValue.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                                byte[] oldBytes = oldValue.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                                
-                                if (newBytes.length <= oldBytes.length) {
-                                    // 可以直接替换
-                                    int dataStart = getStringDataStart(data, stringPos, isUtf8);
-                                    
-                                    // 更新长度
-                                    if (newBytes.length < 128) {
-                                        data[stringPos] = (byte) newValue.length();
-                                        data[stringPos + 1] = (byte) newBytes.length;
-                                    }
-                                    
-                                    // 写入新数据
-                                    System.arraycopy(newBytes, 0, data, dataStart, newBytes.length);
-                                    
-                                    // 用 0 填充剩余空间
-                                    for (int j = newBytes.length; j < oldBytes.length; j++) {
-                                        data[dataStart + j] = 0;
-                                    }
-                                    
-                                    count++;
-                                } else {
-                                    Log.w(TAG, "New string is longer than old string, cannot replace: " + oldValue);
-                                }
-                            }
-                        }
-                    }
-                    break;
-                }
-                
-                pos += chunkSize;
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Replace string error: " + e.getMessage(), e);
-        }
-        
-        return new ReplaceResult(data, count);
-    }
-
-    /**
-     * 从 AXML 数据中读取字符串
-     */
-    private String readStringFromAxml(byte[] data, int pos, boolean isUtf8) {
-        try {
-            if (isUtf8) {
-                int charLen = data[pos] & 0xFF;
-                int byteLen;
-                int dataStart;
-                
-                if ((charLen & 0x80) != 0) {
-                    charLen = ((charLen & 0x7F) << 8) | (data[pos + 1] & 0xFF);
-                    byteLen = data[pos + 2] & 0xFF;
-                    if ((byteLen & 0x80) != 0) {
-                        byteLen = ((byteLen & 0x7F) << 8) | (data[pos + 3] & 0xFF);
-                        dataStart = pos + 4;
-                    } else {
-                        dataStart = pos + 3;
-                    }
-                } else {
-                    byteLen = data[pos + 1] & 0xFF;
-                    if ((byteLen & 0x80) != 0) {
-                        byteLen = ((byteLen & 0x7F) << 8) | (data[pos + 2] & 0xFF);
-                        dataStart = pos + 3;
-                    } else {
-                        dataStart = pos + 2;
-                    }
-                }
-                
-                if (dataStart + byteLen > data.length) {
-                    byteLen = data.length - dataStart;
-                }
-                if (byteLen <= 0) return "";
-                
-                return new String(data, dataStart, byteLen, java.nio.charset.StandardCharsets.UTF_8);
-            }
-        } catch (Exception e) {
-            return "";
-        }
-        return "";
-    }
-
-    /**
-     * 获取字符串数据开始位置
-     */
-    private int getStringDataStart(byte[] data, int pos, boolean isUtf8) {
-        if (isUtf8) {
-            int charLen = data[pos] & 0xFF;
-            if ((charLen & 0x80) != 0) {
-                int byteLen = data[pos + 2] & 0xFF;
-                if ((byteLen & 0x80) != 0) {
-                    return pos + 4;
-                } else {
-                    return pos + 3;
-                }
-            } else {
-                int byteLen = data[pos + 1] & 0xFF;
-                if ((byteLen & 0x80) != 0) {
-                    return pos + 3;
-                } else {
-                    return pos + 2;
-                }
-            }
-        }
-        return pos + 2;
+        return ApkResourceOperations.replaceInManifest(apkPath, replacements);
     }
 
     /**
