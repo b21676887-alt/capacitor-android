@@ -2,8 +2,10 @@ name: Extract Backup Zip
 
 on:
   push:
+    branches:
+      - '**' # يعمل عند الرفع على أي فرع (main, dev, إلخ)
     paths:
-      - 'backup.zip'
+      - '**/backup.zip' # يعمل سواء كان الملف في الجذر أو داخل مجلد فرعي
   workflow_dispatch:
 
 jobs:
@@ -18,10 +20,13 @@ jobs:
 
       - name: Unzip Backup File
         run: |
-          if [ -f "backup.zip" ]; then
-            echo "Unzipping backup.zip into repository..."
-            unzip -o backup.zip -d ./
-            rm backup.zip
+          # البحث عن الملف وفك ضغطه أينما وجد
+          ZIP_FILE=$(find . -maxdepth 2 -name "backup.zip" | head -n 1)
+          if [ -n "$ZIP_FILE" ]; then
+            TARGET_DIR=$(dirname "$ZIP_FILE")
+            echo "Unzipping $ZIP_FILE into $TARGET_DIR..."
+            unzip -o "$ZIP_FILE" -d "$TARGET_DIR"
+            rm "$ZIP_FILE"
             echo "Unzipped successfully and removed backup.zip"
           else
             echo "Warning: backup.zip not found in workspace."
@@ -32,5 +37,5 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add .
-          git commit -m "chore: Extract backup.zip contents" || echo "No changes to commit"
+          git commit -m "chore: Extract backup.zip contents [skip ci]" || echo "No changes to commit"
           git push
